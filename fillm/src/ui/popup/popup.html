@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIL(L)M Settings</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <header class="header">
+      <h1>FIL(L)M</h1>
+      <p class="tagline">Fix It, LLM</p>
+    </header>
+
+    <main class="main">
+      <section class="section">
+        <h2>Quick Capture</h2>
+        <button id="capture-btn" class="btn btn-primary btn-full">
+          Start Capture
+        </button>
+        <p class="hint">Or press <kbd id="shortcut-display">Ctrl+Shift+F</kbd></p>
+      </section>
+
+      <section class="section">
+        <h2>Settings</h2>
+
+        <div class="form-group">
+          <label for="api-key">Claude API Key</label>
+          <div class="input-group">
+            <input
+              type="password"
+              id="api-key"
+              placeholder="sk-ant-..."
+              autocomplete="off"
+            >
+            <button id="toggle-key" class="btn btn-icon" title="Show/hide key">
+              👁
+            </button>
+          </div>
+          <p class="hint" id="api-status"></p>
+        </div>
+
+        <div class="form-group">
+          <label for="default-action">After Capture</label>
+          <select id="default-action">
+            <option value="ask">Ask what to do</option>
+            <option value="download">Download ZIP</option>
+            <option value="claude">Send to Claude</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="full-styles">
+            <span>Capture all CSS properties</span>
+          </label>
+          <p class="hint">By default, only common properties are captured to reduce size.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Keyboard Shortcut</h2>
+        <p class="hint">
+          To change the shortcut, visit<br>
+          <a href="#" id="shortcuts-link">chrome://extensions/shortcuts</a>
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>v1.0.0</p>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
