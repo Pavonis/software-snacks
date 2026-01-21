@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 
 /// A single photo card styled as a Polaroid with flick gesture support
 struct PhotoCardView: View {

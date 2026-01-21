@@ -21,7 +21,7 @@ class ContactsManager: ObservableObject {
         CNContactBirthdayKey as CNKeyDescriptor,
         CNContactJobTitleKey as CNKeyDescriptor,
         CNContactOrganizationNameKey as CNKeyDescriptor,
-        CNContactNoteKey as CNKeyDescriptor,
+        // CNContactNoteKey as CNKeyDescriptor,
         CNContactFormatter.descriptorForRequiredKeys(for: .fullName)
     ]
 

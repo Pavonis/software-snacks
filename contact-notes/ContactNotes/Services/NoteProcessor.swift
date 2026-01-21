@@ -20,7 +20,7 @@ class NoteProcessor: ObservableObject {
     func checkAvailability() async {
         do {
             // Check if Foundation Models is available on this device
-            let availability = LanguageModelSession.Availability.current
+            let availability = SystemLanguageModel.default.availability
             switch availability {
             case .available:
                 session = LanguageModelSession()

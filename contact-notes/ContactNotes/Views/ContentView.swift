@@ -8,7 +8,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             switch contactsManager.authorizationStatus {
-            case .authorized:
+            case .authorized, .limited:
                 MainTabView()
             case .notDetermined:
                 AuthorizationRequestView()

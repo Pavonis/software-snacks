@@ -23,11 +23,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		B1000001229A001BBBBBBBBB /* ContactNotes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContactNotes.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1000001229A0002BBBBBBBB /* ContactNotesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactNotesApp.swift; sourceTree = "<group>"; };
 		B1000001229A0004BBBBBBBB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B1000001229A0006BBBBBBBB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		B1000001229A001CBBBBBBBB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B1000001229A0008BBBBBBBB /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		B1000001229A000ABBBBBBBB /* NoteExtraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteExtraction.swift; sourceTree = "<group>"; };
 		B1000001229A000CBBBBBBBB /* AppContact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContact.swift; sourceTree = "<group>"; };
@@ -38,6 +36,8 @@
 		B1000001229A0016BBBBBBBB /* ContactListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactListView.swift; sourceTree = "<group>"; };
 		B1000001229A0018BBBBBBBB /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
 		B1000001229A001ABBBBBBBB /* NoteHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteHistoryView.swift; sourceTree = "<group>"; };
+		B1000001229A001BBBBBBBBB /* ContactNotes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContactNotes.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000001229A001CBBBBBBBB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,14 +59,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		B1000001229A0020BBBBBBBB /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				B1000001229A001BBBBBBBBB /* ContactNotes.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		B1000001229A001FBBBBBBBB /* ContactNotes */ = {
 			isa = PBXGroup;
 			children = (
@@ -78,6 +70,14 @@
 				B1000001229A001CBBBBBBBB /* Info.plist */,
 			);
 			path = ContactNotes;
+			sourceTree = "<group>";
+		};
+		B1000001229A0020BBBBBBBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B1000001229A001BBBBBBBBB /* ContactNotes.app */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		B1000001229A0021BBBBBBBB /* Models */ = {
@@ -385,20 +385,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		B1000001229A0029BBBBBBBB /* Build configuration list for PBXProject "ContactNotes" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B1000001229A002ABBBBBBBB /* Debug */,
-				B1000001229A002BBBBBBBBB /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		B1000001229A0025BBBBBBBB /* Build configuration list for PBXNativeTarget "ContactNotes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B1000001229A002CBBBBBBBB /* Debug */,
 				B1000001229A002DBBBBBBBB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1000001229A0029BBBBBBBB /* Build configuration list for PBXProject "ContactNotes" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1000001229A002ABBBBBBBB /* Debug */,
+				B1000001229A002BBBBBBBBB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -76,7 +76,7 @@ struct PhotoStackView: View {
             .onAppear {
                 // Create mock photos for preview
                 photos = (0..<5).map { i in
-                    var photo = StackPhoto.preview
+                    let photo = StackPhoto.preview
                     // Give each a unique ID for preview
                     return photo
                 }
