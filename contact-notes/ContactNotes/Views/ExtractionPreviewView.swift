@@ -9,6 +9,8 @@ struct ExtractionPreviewView: View {
     let onSave: () -> Void
 
     @State private var isApplying = false
+    @State private var applyResult: ApplyResult?
+    @State private var showingResultAlert = false
 
     var body: some View {
         NavigationStack {
@@ -97,7 +99,41 @@ struct ExtractionPreviewView: View {
                     .disabled(isApplying)
                 }
             }
+            .alert("Apply Results", isPresented: $showingResultAlert) {
+                Button("OK") {
+                    onSave()
+                    dismiss()
+                }
+            } message: {
+                if let result = applyResult {
+                    Text(resultMessage(for: result))
+                }
+            }
         }
+    }
+
+    private func resultMessage(for result: ApplyResult) -> String {
+        var messages: [String] = []
+
+        // Successes
+        if !result.createdContacts.isEmpty {
+            messages.append("Created \(result.createdContacts.count) new contact(s)")
+        }
+        if !result.successfulUpdates.isEmpty {
+            messages.append("Applied \(result.successfulUpdates.count) update(s)")
+        }
+        if !result.syncedRelationships.isEmpty {
+            messages.append("Synced \(result.syncedRelationships.count) relationship(s)")
+        }
+
+        // Errors
+        if result.hasErrors {
+            messages.append("")
+            messages.append("Errors:")
+            messages.append(result.errorSummary)
+        }
+
+        return messages.isEmpty ? "No changes applied" : messages.joined(separator: "\n")
     }
 
     private func applyAndSave() async {
@@ -109,7 +145,7 @@ struct ExtractionPreviewView: View {
         isApplying = true
 
         // Apply extraction to contacts
-        await noteProcessor.apply(
+        let result = await noteProcessor.apply(
             extraction: extraction,
             to: contactsManager,
             noteId: note.id
@@ -119,8 +155,8 @@ struct ExtractionPreviewView: View {
         contactsManager.addNote(note)
 
         isApplying = false
-        onSave()
-        dismiss()
+        applyResult = result
+        showingResultAlert = true
     }
 }
 
@@ -179,9 +215,9 @@ struct PersonMentionRow: View {
                     .font(.caption)
                     .foregroundStyle(.green)
             } else {
-                Label("New contact", systemImage: "plus.circle")
+                Label("Will create", systemImage: "plus.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.blue)
             }
         }
     }
@@ -212,8 +248,14 @@ struct ContactUpdateRow: View {
 
             Spacer()
 
-            Image(systemName: hasMatch ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(hasMatch ? .green : .orange)
+            if hasMatch {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                // Contact will be created from mentions, then updated
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(.blue)
+            }
         }
     }
 }

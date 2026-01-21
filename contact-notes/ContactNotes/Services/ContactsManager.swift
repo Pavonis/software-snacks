@@ -2,11 +2,40 @@ import Foundation
 import Contacts
 import SwiftUI
 
+/// Result of applying an extraction to contacts
+struct ApplyResult {
+    var successfulUpdates: [ContactUpdate] = []
+    var failedUpdates: [(ContactUpdate, Error)] = []
+    var createdContacts: [String] = []
+    var failedCreations: [(String, Error)] = []
+    var syncedRelationships: [RelationshipMention] = []
+    var failedRelationships: [(RelationshipMention, Error)] = []
+
+    var hasErrors: Bool {
+        !failedUpdates.isEmpty || !failedCreations.isEmpty || !failedRelationships.isEmpty
+    }
+
+    var errorSummary: String {
+        var messages: [String] = []
+        for (update, error) in failedUpdates {
+            messages.append("Failed to update \(update.personName)'s \(update.field): \(error.localizedDescription)")
+        }
+        for (name, error) in failedCreations {
+            messages.append("Failed to create contact '\(name)': \(error.localizedDescription)")
+        }
+        for (rel, error) in failedRelationships {
+            messages.append("Failed to sync relationship \(rel.fromPerson) → \(rel.toPerson): \(error.localizedDescription)")
+        }
+        return messages.joined(separator: "\n")
+    }
+}
+
 @MainActor
 class ContactsManager: ObservableObject {
     @Published var authorizationStatus: CNAuthorizationStatus
     @Published var contacts: [AppContact] = []
     @Published var notes: [Note] = []
+    @Published var lastApplyResult: ApplyResult?
 
     private let store = CNContactStore()
 
@@ -21,7 +50,7 @@ class ContactsManager: ObservableObject {
         CNContactBirthdayKey as CNKeyDescriptor,
         CNContactJobTitleKey as CNKeyDescriptor,
         CNContactOrganizationNameKey as CNKeyDescriptor,
-        // CNContactNoteKey as CNKeyDescriptor,
+        CNContactRelationsKey as CNKeyDescriptor,
         CNContactFormatter.descriptorForRequiredKeys(for: .fullName)
     ]
 
@@ -136,6 +165,109 @@ class ContactsManager: ObservableObject {
 
         // Refresh contacts list
         await fetchContacts()
+    }
+
+    // MARK: - Create New Contacts
+
+    func createContact(name: String, context: String? = nil) async throws -> AppContact {
+        let mutableContact = CNMutableContact()
+
+        // Parse name into components
+        let nameParts = name.split(separator: " ", maxSplits: 1)
+        mutableContact.givenName = String(nameParts.first ?? "")
+        if nameParts.count > 1 {
+            mutableContact.familyName = String(nameParts[1])
+        }
+
+        // Add context as a note if provided
+        if let context = context, !context.isEmpty {
+            mutableContact.note = "Context: \(context)"
+        }
+
+        let saveRequest = CNSaveRequest()
+        saveRequest.add(mutableContact, toContainerWithIdentifier: nil)
+
+        try store.execute(saveRequest)
+
+        // Refresh contacts and find the newly created one
+        await fetchContacts()
+
+        guard let newContact = findBestMatch(for: name) else {
+            throw ContactUpdateError.contactNotFound(name)
+        }
+
+        return newContact
+    }
+
+    // MARK: - Sync Relationships to CNContact
+
+    func syncRelationshipToCNContact(_ relationship: RelationshipMention) async throws {
+        // Find both contacts
+        guard let fromContact = findBestMatch(for: relationship.fromPerson) else {
+            throw ContactUpdateError.contactNotFound(relationship.fromPerson)
+        }
+
+        guard let toContact = findBestMatch(for: relationship.toPerson) else {
+            throw ContactUpdateError.contactNotFound(relationship.toPerson)
+        }
+
+        // Update the "from" contact with the relationship
+        try await addCNContactRelation(
+            to: fromContact,
+            relatedName: toContact.displayName,
+            relationType: relationship.type
+        )
+
+        // Add inverse relationship to the "to" contact
+        let inverseType = inverseRelationshipType(relationship.type)
+        try await addCNContactRelation(
+            to: toContact,
+            relatedName: fromContact.displayName,
+            relationType: inverseType
+        )
+    }
+
+    private func addCNContactRelation(to appContact: AppContact, relatedName: String, relationType: String) async throws {
+        guard let mutableContact = appContact.cnContact.mutableCopy() as? CNMutableContact else {
+            throw ContactUpdateError.cannotModify
+        }
+
+        // Check if this relationship already exists
+        let existingRelation = mutableContact.contactRelations.first { relation in
+            relation.value.name == relatedName
+        }
+
+        if existingRelation != nil {
+            // Relationship already exists, skip
+            return
+        }
+
+        // Map our relationship types to CNLabelContactRelation labels
+        let label = cnLabelForRelationType(relationType)
+        let relation = CNContactRelation(name: relatedName)
+        mutableContact.contactRelations.append(CNLabeledValue(label: label, value: relation))
+
+        let saveRequest = CNSaveRequest()
+        saveRequest.update(mutableContact)
+
+        try store.execute(saveRequest)
+    }
+
+    private func cnLabelForRelationType(_ type: String) -> String {
+        switch type {
+        case "spouse": return CNLabelContactRelationSpouse
+        case "partner": return CNLabelContactRelationPartner
+        case "parent": return CNLabelContactRelationParent
+        case "child": return CNLabelContactRelationChild
+        case "sibling": return CNLabelContactRelationSibling
+        case "friend": return CNLabelContactRelationFriend
+        case "colleague": return CNLabelContactRelationColleague
+        case "manager": return CNLabelContactRelationManager
+        case "assistant": return CNLabelContactRelationAssistant
+        case "engaged": return CNLabelContactRelationPartner
+        case "dating": return CNLabelContactRelationPartner
+        default: return CNLabelOther
+        }
     }
 
     private func parseDate(_ string: String) -> Date? {

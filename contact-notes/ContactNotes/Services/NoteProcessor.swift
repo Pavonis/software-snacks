@@ -74,18 +74,42 @@ class NoteProcessor: ObservableObject {
 
     // MARK: - Apply Extraction
 
-    func apply(extraction: NoteExtraction, to contactsManager: ContactsManager, noteId: UUID) async {
+    func apply(extraction: NoteExtraction, to contactsManager: ContactsManager, noteId: UUID) async -> ApplyResult {
+        var result = ApplyResult()
+
+        // First, create any new contacts for unmatched mentions
+        for mention in extraction.mentions {
+            if contactsManager.findBestMatch(for: mention.name) == nil {
+                do {
+                    _ = try await contactsManager.createContact(name: mention.name, context: mention.context)
+                    result.createdContacts.append(mention.name)
+                } catch {
+                    result.failedCreations.append((mention.name, error))
+                }
+            }
+        }
+
         // Apply contact updates
         for update in extraction.contactUpdates {
             do {
                 try await contactsManager.applyUpdate(update)
+                result.successfulUpdates.append(update)
             } catch {
-                print("Failed to apply update for \(update.personName): \(error)")
+                result.failedUpdates.append((update, error))
             }
         }
 
-        // Store relationships
+        // Sync relationships to CNContact and store in-memory
         for relationship in extraction.relationships {
+            // First sync to CNContact's contactRelations field
+            do {
+                try await contactsManager.syncRelationshipToCNContact(relationship)
+                result.syncedRelationships.append(relationship)
+            } catch {
+                result.failedRelationships.append((relationship, error))
+            }
+
+            // Also store in our in-memory model for the app's relationship graph
             contactsManager.addRelationship(from: relationship, sourceNoteId: noteId)
         }
 
@@ -93,6 +117,11 @@ class NoteProcessor: ObservableObject {
         for event in extraction.events {
             contactsManager.addEvent(from: event, sourceNoteId: noteId)
         }
+
+        // Store the result for UI access
+        contactsManager.lastApplyResult = result
+
+        return result
     }
 }
 
