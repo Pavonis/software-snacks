@@ -4,9 +4,13 @@ import Photos
 /// Main content view handling permissions and displaying the photo stack
 struct ContentView: View {
     @StateObject private var photoManager = PhotoLibraryManager()
+    @StateObject private var settingsManager = SettingsManager()
     @State private var photos: [StackPhoto] = []
     @State private var isLoading = false
-    @State private var config = FlickConfiguration.default
+
+    // Drag tracking for zone indicators
+    @State private var activeDirection: FlickDirection? = nil
+    @State private var dragIntensity: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -33,7 +37,7 @@ struct ContentView: View {
                 if isLoading {
                     loadingView
                 } else {
-                    photoStackView
+                    mainContentView
                 }
 
             @unknown default:
@@ -42,6 +46,25 @@ struct ContentView: View {
         }
         .task {
             await checkAndLoadPhotos()
+        }
+    }
+
+    // MARK: - Main Content (Authorized)
+
+    private var mainContentView: some View {
+        ZStack {
+            // Zone indicators (behind everything)
+            ZoneIndicatorView(
+                config: settingsManager.config,
+                activeDirection: activeDirection,
+                dragIntensity: dragIntensity
+            )
+
+            // Photo stack and UI
+            photoStackView
+
+            // Settings overlay (on top)
+            SettingsOverlayView(settingsManager: settingsManager)
         }
     }
 
@@ -156,26 +179,36 @@ struct ContentView: View {
             // The main photo stack
             PhotoStackView(
                 photos: $photos,
-                config: config,
+                config: settingsManager.config,
                 onFlick: handleFlick
             )
 
             Spacer()
 
-            // Action hints
-            HStack {
-                Label("Delete", systemImage: "arrow.down")
-                    .font(.caption)
-                    .foregroundColor(.red.opacity(0.7))
+            // Direction hints (show all 8)
+            directionHints
+                .padding(.bottom, 100) // Make room for settings button
+        }
+    }
 
-                Spacer()
+    private var directionHints: some View {
+        VStack(spacing: 8) {
+            Text("Flick in any direction")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
-                Label("Favorite", systemImage: "arrow.up")
-                    .font(.caption)
-                    .foregroundColor(.green.opacity(0.7))
+            HStack(spacing: 16) {
+                ForEach(FlickDirection.allCases.prefix(4), id: \.self) { direction in
+                    Text(direction.emoji)
+                        .font(.title3)
+                }
             }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 32)
+            HStack(spacing: 16) {
+                ForEach(FlickDirection.allCases.suffix(4), id: \.self) { direction in
+                    Text(direction.emoji)
+                        .font(.title3)
+                }
+            }
         }
     }
 
@@ -192,6 +225,7 @@ struct ContentView: View {
         isLoading = true
 
         // Fetch photos
+        let config = settingsManager.config
         let fetchedPhotos = photoManager.fetchRecentPhotos(limit: 50)
 
         // Load images for visible cards first, then the rest
@@ -217,8 +251,8 @@ struct ContentView: View {
     }
 
     private func handleFlick(photo: StackPhoto, direction: FlickDirection) {
-        // Log the action (POC - no actual photo library modification)
-        print("\(direction.emoji) \(direction.actionName) photo: \(photo.id)")
+        // Log the direction (POC - no actual photo library modification)
+        print("\(direction.emoji) Flicked \(direction.displayName): \(photo.id)")
     }
 
     private func openSettings() {

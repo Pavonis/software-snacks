@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 
 /// A single photo card styled as a Polaroid with flick gesture support
 struct PhotoCardView: View {
@@ -18,6 +19,9 @@ struct PhotoCardView: View {
 
     /// Direction the card is flying off (for animation)
     @State private var flickDirection: FlickDirection? = nil
+
+    /// Fly-off offset for animation
+    @State private var flyOffOffset: CGSize = .zero
 
     // MARK: - Polaroid Dimensions
 
@@ -71,30 +75,38 @@ struct PhotoCardView: View {
         )
         // Apply transforms
         .rotationEffect(.degrees(photo.rotation + dragRotation))
-        .offset(x: photo.offsetX + offset.width, y: photo.offsetY + offset.height)
-        // Flick off-screen offset
-        .offset(y: flickOffsetY)
+        .offset(
+            x: photo.offsetX + offset.width + flyOffOffset.width,
+            y: photo.offsetY + offset.height + flyOffOffset.height
+        )
         .opacity(isFlickingOff ? 0 : 1)
         // Gesture handling
         .gesture(isInteractive ? dragGesture : nil)
         .animation(isDragging ? nil : config.snapBackAnimation, value: offset)
     }
 
+    // MARK: - Current Direction
+
+    /// The current direction based on drag offset
+    private var currentDirection: FlickDirection? {
+        FlickDirection.from(offset: offset, cornerWedgeDegrees: config.cornerWedgeDegrees)
+    }
+
     // MARK: - Glow Effect
 
     private var glowView: some View {
-        let direction = FlickDirection.from(verticalOffset: offset.height)
+        let direction = currentDirection
         let intensity = glowIntensity
 
         return RoundedRectangle(cornerRadius: 4)
             .fill(direction?.color ?? .clear)
             .blur(radius: config.maxGlowRadius * intensity)
-            .opacity(intensity * config.maxGlowOpacity)
+            .opacity(Double(intensity) * config.maxGlowOpacity)
     }
 
     /// Calculate glow intensity based on drag distance (exponential curve)
     private var glowIntensity: CGFloat {
-        let distance = abs(offset.height)
+        let distance = sqrt(offset.width * offset.width + offset.height * offset.height)
         let normalizedDistance = min(distance / config.distanceThreshold, 1.0)
         return pow(normalizedDistance, config.glowExponent)
     }
@@ -105,14 +117,6 @@ struct PhotoCardView: View {
     private var dragRotation: Double {
         guard isDragging else { return 0 }
         return Double(offset.width) * 0.05
-    }
-
-    // MARK: - Flick Animation
-
-    private var flickOffsetY: CGFloat {
-        guard isFlickingOff, let direction = flickDirection else { return 0 }
-        let screenHeight = UIScreen.main.bounds.height
-        return direction == .up ? -screenHeight * config.flyOffDistanceMultiplier : screenHeight * config.flyOffDistanceMultiplier
     }
 
     // MARK: - Gesture
@@ -140,17 +144,22 @@ struct PhotoCardView: View {
             height: value.predictedEndLocation.y - value.location.y
         )
 
-        let verticalVelocity = abs(velocity.height)
-        let verticalDistance = abs(offset.height)
+        // Calculate total velocity magnitude
+        let velocityMagnitude = sqrt(velocity.width * velocity.width + velocity.height * velocity.height)
+
+        // Calculate total distance
+        let distance = sqrt(offset.width * offset.width + offset.height * offset.height)
 
         // Check if flick threshold is met
-        let meetsVelocityThreshold = verticalVelocity > config.velocityThreshold
-        let meetsDistanceThreshold = verticalDistance > config.distanceThreshold
+        let meetsVelocityThreshold = velocityMagnitude > config.velocityThreshold
+        let meetsDistanceThreshold = distance > config.distanceThreshold
 
         if meetsVelocityThreshold || meetsDistanceThreshold {
-            // Trigger flick action
-            if let direction = FlickDirection.from(verticalOffset: offset.height) {
+            // Trigger flick action in detected direction
+            if let direction = currentDirection {
                 triggerFlick(direction: direction)
+            } else {
+                offset = .zero
             }
         } else {
             // Snap back
@@ -162,8 +171,19 @@ struct PhotoCardView: View {
         flickDirection = direction
         isFlickingOff = true
 
+        // Calculate fly-off offset based on direction
+        let screenSize = UIScreen.main.bounds.size
+        let flyDistance = max(screenSize.width, screenSize.height) * config.flyOffDistanceMultiplier
+
+        // Use the direction's center angle to calculate fly-off vector
+        let angle = direction.centerAngle
+        let targetOffset = CGSize(
+            width: cos(angle) * flyDistance,
+            height: sin(angle) * flyDistance
+        )
+
         withAnimation(.easeIn(duration: config.flyOffDuration)) {
-            // The flickOffsetY computed property handles the actual movement
+            flyOffOffset = targetOffset
         }
 
         // Notify after animation

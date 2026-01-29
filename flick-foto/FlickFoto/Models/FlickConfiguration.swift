@@ -26,6 +26,12 @@ struct FlickConfiguration {
     /// Maximum opacity for glow effect
     var maxGlowOpacity: CGFloat = 0.8
 
+    // MARK: - Direction Detection
+
+    /// Size of corner wedges in degrees (edges get the remainder)
+    /// With 50° corners, edges get 40° each. Total: 4×50 + 4×40 = 360°
+    var cornerWedgeDegrees: Double = 50
+
     // MARK: - Animation
 
     /// Spring animation for snap-back
