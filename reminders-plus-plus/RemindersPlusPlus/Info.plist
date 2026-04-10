@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Reminders++ needs full access to your reminders to display, create, edit, and manage them — acting as an enhanced front-end to the built-in Reminders system.</string>
+</dict>
+</plist>
