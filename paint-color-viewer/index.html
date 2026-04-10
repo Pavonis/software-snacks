@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sherwin-Williams Paint Color Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Paint Color Viewer</h1>
+      <p class="mt-1 text-sm text-gray-500">Sherwin-Williams color approximations</p>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+    <!-- Add Color Form -->
+    <div class="mb-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-800 mb-4">Add a Color</h2>
+      <form id="add-color-form" class="flex flex-col sm:flex-row gap-3">
+        <input
+          type="text"
+          id="color-name"
+          placeholder="Color name (e.g. &quot;Agreeable Gray&quot;)"
+          class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          required
+        />
+        <input
+          type="color"
+          id="color-hex"
+          value="#8FBCBB"
+          class="h-[42px] w-16 rounded-lg border border-gray-300 cursor-pointer"
+          title="Pick a color"
+        />
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+        >
+          Add Color
+        </button>
+      </form>
+    </div>
+
+    <!-- Color Grid -->
+    <div id="color-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+    </div>
+
+  </main>
+
+  <script>
+    // Sherwin-Williams paint colors with approximate hex values
+    const defaultColors = [
+      { name: "Refresh", code: "SW 6751", hex: "#69B29C" },
+      { name: "Misty", code: "SW 6232", hex: "#C3CDD2" },
+      { name: "Waterscape", code: "SW 6470", hex: "#96C4BE" },
+      { name: "Ivory Lace", code: "SW 7013", hex: "#F0E4D1" },
+      { name: "Hinting Blue", code: "SW 6519", hex: "#CBD7DD" },
+      { name: "Upward", code: "SW 6239", hex: "#B4C9D5" },
+      { name: "Aqueduct", code: "SW 6758", hex: "#5BA3A0" },
+      { name: "Pearly White", code: "SW 7009", hex: "#EDE5D7" },
+      { name: "In the Navy", code: "SW 9178", hex: "#2F3441" },
+      { name: "Salty Dog", code: "SW 9177", hex: "#2C4058" },
+      { name: "Naval", code: "SW 6244", hex: "#2E3E56" },
+      { name: "Dress Blues", code: "SW 9176", hex: "#2C3B52" },
+      { name: "Cape Verde", code: "SW 6482", hex: "#3B8C8A" },
+      { name: "Country Squire", code: "SW 6475", hex: "#2A6C60" },
+      { name: "Poseidon", code: "SW 6762", hex: "#1E5C5B" },
+      { name: "Tidewater", code: "SW 6477", hex: "#A5CCC4" },
+      { name: "Breathless", code: "SW 6022", hex: "#E6CCC7" },
+      { name: "Innocence", code: "SW 6302", hex: "#EDD4CE" },
+      { name: "Rosebud", code: "SW 6288", hex: "#E1A7A0" },
+      { name: "Rosy Outlook", code: "SW 6316", hex: "#E8B1A8" },
+      { name: "Breaktime", code: "SW 6463", hex: "#97D0C4" },
+      { name: "Sea Salt", code: "SW 6204", hex: "#C6CFCA" },
+      { name: "Rainwashed", code: "SW 6211", hex: "#C0D2CC" },
+    ];
+
+    // Load colors from localStorage or use defaults
+    function loadColors() {
+      const saved = localStorage.getItem("sw-paint-colors");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+      return [...defaultColors];
+    }
+
+    function saveColors(colors) {
+      localStorage.setItem("sw-paint-colors", JSON.stringify(colors));
+    }
+
+    // Determine if text on a background should be light or dark
+    function textColorFor(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      // Relative luminance
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance > 0.55 ? "text-gray-800" : "text-white";
+    }
+
+    function renderColors() {
+      const grid = document.getElementById("color-grid");
+      const colors = loadColors();
+      grid.innerHTML = "";
+
+      colors.forEach((color, index) => {
+        const textClass = textColorFor(color.hex);
+        const subtextClass = textClass === "text-white" ? "text-white/70" : "text-gray-500";
+        const btnHoverClass = textClass === "text-white"
+          ? "hover:bg-white/20 text-white/60 hover:text-white"
+          : "hover:bg-black/10 text-gray-400 hover:text-gray-600";
+
+        const card = document.createElement("div");
+        card.className = "group rounded-xl shadow-sm border border-gray-200 overflow-hidden bg-white transition-shadow hover:shadow-md";
+        card.innerHTML = `
+          <div class="relative h-36 flex items-end p-4" style="background-color: ${color.hex}">
+            <button
+              onclick="removeColor(${index})"
+              class="absolute top-2 right-2 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity ${btnHoverClass}"
+              title="Remove color"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="p-4">
+            <p class="font-semibold text-gray-900 text-sm">${color.name}</p>
+            <p class="text-xs text-gray-400 mt-0.5">${color.code || "Custom"}</p>
+            <p class="text-xs text-gray-400 mt-0.5 font-mono uppercase">${color.hex}</p>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function removeColor(index) {
+      const colors = loadColors();
+      colors.splice(index, 1);
+      saveColors(colors);
+      renderColors();
+    }
+
+    document.getElementById("add-color-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById("color-name");
+      const hexInput = document.getElementById("color-hex");
+      const name = nameInput.value.trim();
+      const hex = hexInput.value;
+
+      if (!name) return;
+
+      const colors = loadColors();
+      colors.push({ name, code: "", hex });
+      saveColors(colors);
+      renderColors();
+      nameInput.value = "";
+      nameInput.focus();
+    });
+
+    // Initial render
+    renderColors();
+  </script>
+
+</body>
+</html>
