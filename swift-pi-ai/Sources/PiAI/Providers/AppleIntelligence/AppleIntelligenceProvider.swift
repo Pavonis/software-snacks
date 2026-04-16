@@ -1,0 +1,284 @@
+// Apple Intelligence on-device provider.
+//
+// Uses Apple's FoundationModels framework (iOS 26+ / macOS 26+) to run
+// inference on the on-device Apple Foundation Model (~3B parameters).
+//
+// Key characteristics:
+// - Entirely on-device, no cloud round-trip
+// - ~4K token context window (input + output combined)
+// - Supports structured output via @Generable (constrained decoding)
+// - Supports tool calling via the Tool protocol
+// - Snapshot-based streaming (each emit is progressively more complete)
+// - Requires A17 Pro / M-series chip with Apple Intelligence enabled
+//
+// This provider bridges Apple's FoundationModels API into the unified
+// PiAI event stream, so the on-device model can be used interchangeably
+// with cloud providers like Anthropic and OpenAI.
+
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+import Foundation
+
+/// Availability status of the on-device Apple Intelligence model.
+public enum AppleIntelligenceAvailability: Sendable, Equatable {
+    case available
+    case unavailable(Reason)
+
+    public enum Reason: Sendable, Equatable {
+        case deviceNotEligible
+        case appleIntelligenceNotEnabled
+        case modelNotReady
+        case unsupportedPlatform
+    }
+}
+
+/// Provider for Apple's on-device Foundation Model (Apple Intelligence).
+///
+/// Usage:
+/// ```swift
+/// let provider = AppleIntelligenceProvider()
+///
+/// // Check availability first
+/// guard provider.availability == .available else {
+///     print("Apple Intelligence not available")
+///     return
+/// }
+///
+/// let model = AppleIntelligenceProvider.onDeviceModel
+/// let context = Context(
+///     systemPrompt: "You are a helpful assistant.",
+///     messages: [.user(UserMessage("Hello!"))]
+/// )
+/// let stream = provider.stream(model: model, context: context, options: StreamOptions())
+/// for await event in stream {
+///     // handle events...
+/// }
+/// ```
+public struct AppleIntelligenceProvider: AIProvider, Sendable {
+    public let apiKind = APIKind.appleIntelligence
+
+    public init() {}
+
+    /// A pre-configured Model descriptor for the on-device Apple Foundation Model.
+    public static let onDeviceModel = Model(
+        id: "apple-foundation-model",
+        name: "Apple Intelligence (On-Device)",
+        api: .appleIntelligence,
+        provider: "apple",
+        baseURL: "on-device://",
+        reasoning: false,
+        inputModalities: [.text],
+        cost: ModelCost(input: 0, output: 0), // Free — on-device
+        contextWindow: 4096,
+        maxTokens: 4096
+    )
+
+    /// Check if Apple Intelligence is available on this device.
+    public var availability: AppleIntelligenceAvailability {
+        #if canImport(FoundationModels)
+        switch SystemLanguageModel.default.availability {
+        case .available:
+            return .available
+        case .unavailable(.deviceNotEligible):
+            return .unavailable(.deviceNotEligible)
+        case .unavailable(.appleIntelligenceNotEnabled):
+            return .unavailable(.appleIntelligenceNotEnabled)
+        case .unavailable(.modelNotReady):
+            return .unavailable(.modelNotReady)
+        @unknown default:
+            return .unavailable(.unsupportedPlatform)
+        }
+        #else
+        return .unavailable(.unsupportedPlatform)
+        #endif
+    }
+
+    public func stream(
+        model: Model,
+        context: Context,
+        options: StreamOptions
+    ) -> AssistantMessageEventStream {
+        let eventStream = AssistantMessageEventStream()
+
+        #if canImport(FoundationModels)
+        Task {
+            var output = AssistantMessage(
+                content: [],
+                api: model.api.rawValue,
+                provider: model.provider,
+                model: model.id
+            )
+
+            do {
+                // Create session with system instructions
+                let session: LanguageModelSession
+                if let systemPrompt = context.systemPrompt {
+                    session = LanguageModelSession(instructions: systemPrompt)
+                } else {
+                    session = LanguageModelSession()
+                }
+
+                // Replay conversation history to build up the session transcript.
+                // Apple's LanguageModelSession is stateful — we feed prior turns
+                // to reconstruct context. For efficiency on the small context window,
+                // we only replay the tail of the conversation.
+                let replayMessages = tailMessages(context.messages, maxTokenBudget: 3000)
+                for msg in replayMessages.dropLast() {
+                    switch msg {
+                    case .user(let m):
+                        // Respond to build context (discarding the response)
+                        _ = try? await session.respond(to: m.content.plainText)
+                    case .assistant, .toolResult:
+                        // Skip — assistant messages are generated by the model,
+                        // and we can't inject them into the session externally.
+                        break
+                    }
+                }
+
+                // The last message should be the user's current prompt
+                let prompt: String
+                if let lastMsg = context.messages.last, case .user(let m) = lastMsg {
+                    prompt = m.content.plainText
+                } else {
+                    prompt = context.messages.compactMap { msg in
+                        if case .user(let m) = msg { return m.content.plainText }
+                        return nil
+                    }.last ?? ""
+                }
+
+                eventStream.push(.start(partial: output))
+
+                // Stream the response — Apple uses snapshot-based streaming
+                // where each emitted value is progressively more complete.
+                let responseStream = session.streamResponse(to: prompt)
+                var textBlockStarted = false
+
+                for try await partial in responseStream {
+                    let content = partial.content
+
+                    if !textBlockStarted && !content.isEmpty {
+                        textBlockStarted = true
+                        output.content.append(.text(TextContent(text: "")))
+                        eventStream.push(.textStart(contentIndex: 0, partial: output))
+                    }
+
+                    if textBlockStarted, case .text(var tc) = output.content[0] {
+                        // Compute delta from previous content
+                        let previousText = tc.text
+                        if content.count > previousText.count {
+                            let delta = String(content[content.index(content.startIndex, offsetBy: previousText.count)...])
+                            tc.text = content
+                            output.content[0] = .text(tc)
+                            eventStream.push(.textDelta(
+                                contentIndex: 0, delta: delta, partial: output
+                            ))
+                        }
+                    }
+                }
+
+                // Finalize
+                if textBlockStarted, case .text(let tc) = output.content[0] {
+                    eventStream.push(.textEnd(
+                        contentIndex: 0, content: tc.text, partial: output
+                    ))
+                }
+
+                output.stopReason = .stop
+                // On-device model doesn't report token usage
+                eventStream.push(.done(reason: .stop, message: output))
+
+            } catch {
+                output.stopReason = .error
+                output.errorMessage = mapAppleError(error)
+                eventStream.push(.error(reason: .error, message: output))
+            }
+        }
+        #else
+        // Platform doesn't support FoundationModels
+        Task {
+            var output = AssistantMessage(
+                content: [],
+                api: model.api.rawValue,
+                provider: model.provider,
+                model: model.id
+            )
+            output.stopReason = .error
+            output.errorMessage = "Apple Intelligence is not available on this platform. Requires iOS 26+ or macOS 26+ with FoundationModels framework."
+            eventStream.push(.start(partial: output))
+            eventStream.push(.error(reason: .error, message: output))
+        }
+        #endif
+
+        return eventStream
+    }
+
+    /// Trim messages to fit within a token budget.
+    /// Apple's on-device model has a ~4K context window, so we keep
+    /// only the most recent messages.
+    private func tailMessages(_ messages: [Message], maxTokenBudget: Int) -> [Message] {
+        // Rough heuristic: ~4 characters per token
+        var budget = maxTokenBudget
+        var result: [Message] = []
+
+        for msg in messages.reversed() {
+            let text: String
+            switch msg {
+            case .user(let m): text = m.content.plainText
+            case .assistant(let m): text = m.text
+            case .toolResult(let m):
+                text = m.content.compactMap { block in
+                    if case .text(let t) = block { return t.text }
+                    return nil
+                }.joined()
+            }
+
+            let estimatedTokens = text.count / 4
+            if budget - estimatedTokens < 0 && !result.isEmpty { break }
+            budget -= estimatedTokens
+            result.insert(msg, at: 0)
+        }
+
+        return result
+    }
+
+    #if canImport(FoundationModels)
+    private func mapAppleError(_ error: Error) -> String {
+        if let genError = error as? LanguageModelSession.GenerationError {
+            switch genError {
+            case .exceededContextWindowSize:
+                return "Context window exceeded. The on-device model has a ~4K token limit."
+            case .guardrailViolation:
+                return "Content blocked by Apple Intelligence safety guardrails."
+            default:
+                return "Apple Intelligence error: \(genError.localizedDescription)"
+            }
+        }
+        return error.localizedDescription
+    }
+    #endif
+}
+
+// MARK: - Apple Intelligence Tool Bridge
+
+/// Bridge between PiAI's `ExecutableTool` protocol and Apple's `Tool` protocol.
+///
+/// When running on Apple Intelligence, tools defined via PiAI's `ExecutableTool`
+/// can be adapted to Apple's native tool calling. This is a design sketch —
+/// full implementation requires the FoundationModels framework.
+///
+/// The key insight from Apple's design: tool arguments are `@Generable` types
+/// with constrained decoding, so the model's output is *guaranteed* to parse.
+/// For cloud providers, we achieve similar (but not identical) reliability
+/// via JSON Schema in the tool definition.
+public struct ToolBridge {
+    /// Create a PiAI Tool definition from an ExecutableTool.
+    public static func tool(from executable: any ExecutableTool) -> Tool {
+        type(of: executable).toolDefinition
+    }
+
+    /// Create PiAI Tool definitions from multiple ExecutableTools.
+    public static func tools(from executables: [any ExecutableTool]) -> [Tool] {
+        executables.map { type(of: $0).toolDefinition }
+    }
+}
