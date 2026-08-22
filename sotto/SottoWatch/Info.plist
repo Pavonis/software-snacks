@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>WKApplication</key>
+	<true/>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Sotto reads heart rate, energy, and cycling distance to show live ride metrics.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Sotto saves your rides as workouts so they appear in Apple Fitness.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Sotto connects to your power meter, heart rate strap, and drivetrain over Bluetooth.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Sotto uses your location for speed, elevation, and your ride route.</string>
+</dict>
+</plist>
